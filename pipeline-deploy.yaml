@@ -1,0 +1,80 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: deploy-pipeline
+spec:
+  resources:
+  - name: tasks-git
+    type: git
+  - name: tasks-image
+    type: image
+  params:
+  - name: APP_NAME
+    default: openshift-tasks
+  tasks:
+  - name: build-app
+    taskRef:
+      name: mvn-build-skip-tests
+    resources:
+      inputs:
+      - name: source
+        resource: tasks-git
+      outputs:
+      - name: source
+        resource: tasks-git
+  - name: test-app
+    taskRef:
+      name: mvn-test
+    resources:
+      inputs:
+      - name: source
+        resource: tasks-git
+      outputs:
+      - name: source
+        resource: tasks-git
+  - name: analyse-code
+    taskRef:
+      name: mvn-code-analysis
+    runAfter:
+      - mvn-test
+    resources:
+      inputs:
+      - name: source
+        resource: tasks-git
+        from: [build-app]
+  - name: archive-app
+    taskRef:
+      name: mvn-archive
+    resources:
+      inputs:
+      - name: source
+        resource: tasks-git
+      outputs:
+      - name: source
+        resource: tasks-git
+  - name: build-image
+    taskRef:
+      name: buildah
+    runAfter:
+      - analyse-code
+    params:
+    - name: DOCKERFILE
+      value: Dockerfile.openjdk
+    - name: TLSVERIFY
+      value: "false"
+    resources:
+      inputs:
+      - name: source
+        resource: tasks-git
+        from: [build-app]
+      outputs:
+      - name: image
+        resource: tasks-image
+  - name: deploy
+    taskRef:
+      name: openshift-client
+    runAfter:
+      - build-image
+    params:
+    - name: ARGS
+      value: "rollout latest ${params.APP_NAME}"

@@ -1,0 +1,11 @@
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: tasks-git
+spec:
+  type: git
+  params:
+  - name: revision
+    value: eap-7
+  - name: url
+    value: 'http://gogs:3000/gogs/openshift-tasks.git'

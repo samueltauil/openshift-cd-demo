@@ -1,8 +1,8 @@
-*For other versions of OpenShift, follow the instructions in the corresponding branch e.g. ocp-4.1, ocp-3.11, , etc
+> **_NOTE:_** For other versions of OpenShift, follow the instructions in the corresponding branch e.g. ocp-4.1, ocp-3.11, etc.
 
-# CI/CD Demo - OpenShift Container Platform 4.1
+# CI/CD Demo - OpenShift Container Platform 4.1 with Tekton
 
-This repository includes the infrastructure and pipeline definition for continuous delivery using Jenkins, Nexus, SonarQube and Eclipse Che on OpenShift. 
+This repository includes the infrastructure and pipeline definition for continuous delivery using Tekton, Nexus, SonarQube and Eclipse Che on OpenShift.
 
 * [Introduction](#introduction)
 * [Prerequisites](#prerequisites)
@@ -47,18 +47,18 @@ You can se the `scripts/provision.sh` script provided to deploy the entire demo:
   ```
   ./provision.sh --help
   ./provision.sh deploy --enable-che --ephemeral # with Eclipse Che
-  ./provision.sh delete 
+  ./provision.sh delete
   ```
-If you want to use Quay.io as an external registry with this demo, Go to quay.io and register for free. Then deploy the demo providing your 
+If you want to use Quay.io as an external registry with this demo, Go to quay.io and register for free. Then deploy the demo providing your
 quay.io credentials:
 
   ```
   ./provision.sh deploy --enable-quay --quay-username quay_username --quay-password quay_password
   ```
-In that case, the pipeline would create an image repository called `tasks-app` (default name but configurable) 
-on your Quay.io account and use that instead of the integrated OpenShift 
-registry, for pushing the built images and also pulling images for deployment. 
-  
+In that case, the pipeline would create an image repository called `tasks-app` (default name but configurable)
+on your Quay.io account and use that instead of the integrated OpenShift
+registry, for pushing the built images and also pulling images for deployment.
+
 ## Manual Deploy on OpenShift
 Follow these [instructions](docs/local-cluster.md) in order to create a local OpenShift cluster. Otherwise using your current OpenShift cluster, create the following projects for CI/CD components, Dev and Stage environments:
 
@@ -89,8 +89,8 @@ your own names and use the following to create the demo:
 
 # JBoss EAP vs WildFly
 
-This demo by default uses the WildFly community image. You can use the JBoss EAP enterprise images provide by Red Hat by simply editing the 
-`tasks` build config in the _Tasks - Dev_ project and changing the builder image from `wildfly` to `jboss-eap70-openshift:1.5`. The demo would work exactly the same and would build the images using the JBoss EAP builder image. If using Quay, be sure not to leave the JBoss EAP images on a publicly accessible image repository. 
+This demo by default uses the WildFly community image. You can use the JBoss EAP enterprise images provide by Red Hat by simply editing the
+`tasks` build config in the _Tasks - Dev_ project and changing the builder image from `wildfly` to `jboss-eap70-openshift:1.5`. The demo would work exactly the same and would build the images using the JBoss EAP builder image. If using Quay, be sure not to leave the JBoss EAP images on a publicly accessible image repository.
 
 ## Troubleshooting
 
@@ -131,7 +131,7 @@ This demo by default uses the WildFly community image. You can use the JBoss EAP
   * Explore SonarQube and show the metrics, stats, code coverage, etc
   * Explore _Tasks - Dev_ project in OpenShift console and verify the application is deployed in the DEV environment
   * Explore _Tasks - Stage_ project in OpenShift console and verify the application is deployed in the STAGE environment  
-  * If Quay enabled, click on the image tag in quay.io and show the security scannig results 
+  * If Quay enabled, click on the image tag in quay.io and show the security scannig results
 
 ![](images/sonarqube-analysis.png?raw=true)
 
@@ -145,7 +145,7 @@ This demo by default uses the WildFly community image. You can use the JBoss EAP
 
 * Fix the test by modifying ```src/main/java/org/jboss/as/quickstarts/tasksrs/service/UserResource.java``` and uncommenting the sort function in _getUsers_ method.
 
-* Run the unit test in the IDE. The unit test runs green. 
+* Run the unit test in the IDE. The unit test runs green.
 
 * Commit and push the fix to the git repository and verify a pipeline instance is created in Jenkins and executes successfully.
 

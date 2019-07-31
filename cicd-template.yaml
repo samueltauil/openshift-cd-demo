@@ -6,9 +6,9 @@ labels:
 metadata:
   annotations:
     iconClass: icon-jenkins
-    tags: instant-app,jenkins,gogs,nexus,cicd
+    tags: instant-app,gogs,nexus,cicd
   name: cicd
-message: "Use the following credentials for login:\nJenkins: use your OpenShift credentials\nNexus: admin/admin123\nSonarQube: admin/admin\nGogs Git Server: gogs/gogs"
+message: "Use the following credentials for login:\nNexus: admin/admin123\nSonarQube: admin/admin\nGogs Git Server: gogs/gogs"
 parameters:
 - displayName: DEV project name
   value: dev
@@ -34,7 +34,7 @@ parameters:
   name: WEBHOOK_SECRET
   required: true
 - displayName: Integrate Quay.io
-  description: Integrate image build and deployment with Quay.io 
+  description: Integrate image build and deployment with Quay.io
   value: "false"
   name: ENABLE_QUAY
   required: true
@@ -49,6 +49,10 @@ parameters:
   name: QUAY_REPOSITORY
   required: true
   value: tasks-app
+- displayName: Wildcard DNS domain
+  value: mydomain
+  name: WILDCARD
+  required: true
 objects:
 - apiVersion: v1
   groupNames: null
@@ -60,205 +64,6 @@ objects:
   subjects:
   - kind: ServiceAccount
     name: default
-# Pipeline
-- apiVersion: v1
-  kind: BuildConfig
-  metadata:
-    annotations:
-      pipeline.alpha.openshift.io/uses: '[{"name": "jenkins", "namespace": "", "kind": "DeploymentConfig"}]'
-    labels:
-      app: cicd-pipeline
-      name: cicd-pipeline
-    name: tasks-pipeline
-  spec:
-    triggers:
-      - type: GitHub
-        github:
-          secret: ${WEBHOOK_SECRET}
-      - type: Generic
-        generic:
-          secret: ${WEBHOOK_SECRET}
-    runPolicy: Serial
-    source:
-      type: None
-    strategy:
-      jenkinsPipelineStrategy:
-        env:
-        - name: DEV_PROJECT
-          value: ${DEV_PROJECT}
-        - name: STAGE_PROJECT
-          value: ${STAGE_PROJECT}
-        - name: ENABLE_QUAY
-          value: ${ENABLE_QUAY}
-        jenkinsfile: |-
-          def mvnCmd = "mvn -s configuration/cicd-settings-nexus3.xml"
-
-          pipeline {
-            agent {
-              label 'maven'
-            }
-            stages {
-              stage('Build App') {
-                steps {
-                  git branch: 'eap-7', url: 'http://gogs:3000/gogs/openshift-tasks.git'
-                  sh "${mvnCmd} install -DskipTests=true"
-                }
-              }
-              stage('Test') {
-                steps {
-                  sh "${mvnCmd} test"
-                  step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
-                }
-              }
-              stage('Code Analysis') {
-                steps {
-                  script {
-                    sh "${mvnCmd} sonar:sonar -Dsonar.host.url=http://sonarqube:9000 -DskipTests=true"
-                  }
-                }
-              }
-              stage('Archive App') {
-                steps {
-                  sh "${mvnCmd} deploy -DskipTests=true -P nexus3"
-                }
-              }
-              stage('Build Image') {
-                steps {
-                  sh "cp target/openshift-tasks.war target/ROOT.war"
-                  script {
-                    openshift.withCluster() {
-                      openshift.withProject(env.DEV_PROJECT) {
-                        openshift.selector("bc", "tasks").startBuild("--from-file=target/ROOT.war", "--wait=true")
-                      }
-                    }
-                  }
-                }
-              }
-              stage('Deploy DEV') {
-                steps {
-                  script {
-                    openshift.withCluster() {
-                      openshift.withProject(env.DEV_PROJECT) {
-                        openshift.selector("dc", "tasks").rollout().latest();
-                      }
-                    }
-                  }
-                }
-              }
-              stage('Promote to STAGE?') {
-                agent {
-                  label 'skopeo'
-                }
-                steps {
-                  timeout(time:15, unit:'MINUTES') {
-                      input message: "Promote to STAGE?", ok: "Promote"
-                  }
-
-                  script {
-                    openshift.withCluster() {
-                      if (env.ENABLE_QUAY.toBoolean()) {
-                        withCredentials([usernamePassword(credentialsId: "${openshift.project()}-quay-cicd-secret", usernameVariable: "QUAY_USER", passwordVariable: "QUAY_PWD")]) {
-                          sh "skopeo copy docker://quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest docker://quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --src-creds \"$QUAY_USER:$QUAY_PWD\" --dest-creds \"$QUAY_USER:$QUAY_PWD\" --src-tls-verify=false --dest-tls-verify=false"
-                        }
-                      } else {
-                        openshift.tag("${env.DEV_PROJECT}/tasks:latest", "${env.STAGE_PROJECT}/tasks:stage")
-                      }
-                    }
-                  }
-                }
-              }
-              stage('Deploy STAGE') {
-                steps {
-                  script {
-                    openshift.withCluster() {
-                      openshift.withProject(env.STAGE_PROJECT) {
-                        openshift.selector("dc", "tasks").rollout().latest();
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-      type: JenkinsPipeline
-- apiVersion: v1
-  kind: ConfigMap
-  metadata:
-    labels:
-      app: cicd-pipeline
-      role: jenkins-slave
-    name: jenkins-slaves
-  data:
-    maven-template: |-
-      <org.csanchez.jenkins.plugins.kubernetes.PodTemplate>
-        <inheritFrom></inheritFrom>
-        <name>maven</name>
-        <privileged>false</privileged>
-        <alwaysPullImage>false</alwaysPullImage>
-        <instanceCap>2147483647</instanceCap>
-        <idleMinutes>0</idleMinutes>
-        <label>maven</label>
-        <serviceAccount>jenkins</serviceAccount>
-        <nodeSelector></nodeSelector>
-        <customWorkspaceVolumeEnabled>false</customWorkspaceVolumeEnabled>
-        <workspaceVolume class="org.csanchez.jenkins.plugins.kubernetes.volumes.workspace.EmptyDirWorkspaceVolume">
-          <memory>false</memory>
-        </workspaceVolume>
-        <volumes />
-        <containers>
-          <org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
-            <name>jnlp</name>
-            <image>openshift/jenkins-agent-maven-35-centos7</image>
-            <privileged>false</privileged>
-            <alwaysPullImage>false</alwaysPullImage>
-            <workingDir>/tmp</workingDir>
-            <command></command>
-            <args>${computer.jnlpmac} ${computer.name}</args>
-            <ttyEnabled>false</ttyEnabled>
-            <resourceRequestCpu>200m</resourceRequestCpu>
-            <resourceRequestMemory>512Mi</resourceRequestMemory>
-            <resourceLimitCpu>2</resourceLimitCpu>
-            <resourceLimitMemory>4Gi</resourceLimitMemory>
-            <envVars/>
-          </org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
-        </containers>
-        <envVars/>
-        <annotations/>
-        <imagePullSecrets/>
-      </org.csanchez.jenkins.plugins.kubernetes.PodTemplate>
-    skopeo-template: |-
-      <org.csanchez.jenkins.plugins.kubernetes.PodTemplate>
-        <inheritFrom></inheritFrom>
-        <name>skopeo</name>
-        <privileged>false</privileged>
-        <alwaysPullImage>false</alwaysPullImage>
-        <instanceCap>2147483647</instanceCap>
-        <idleMinutes>0</idleMinutes>
-        <label>skopeo</label>
-        <serviceAccount>jenkins</serviceAccount>
-        <nodeSelector></nodeSelector>
-        <customWorkspaceVolumeEnabled>false</customWorkspaceVolumeEnabled>
-        <workspaceVolume class="org.csanchez.jenkins.plugins.kubernetes.volumes.workspace.EmptyDirWorkspaceVolume">
-          <memory>false</memory>
-        </workspaceVolume>
-        <volumes />
-        <containers>
-          <org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
-            <name>jnlp</name>
-            <image>docker.io/siamaksade/jenkins-slave-skopeo-centos7</image>
-            <privileged>false</privileged>
-            <alwaysPullImage>false</alwaysPullImage>
-            <workingDir>/tmp</workingDir>
-            <command></command>
-            <args>${computer.jnlpmac} ${computer.name}</args>
-            <ttyEnabled>false</ttyEnabled>
-            <envVars/>
-          </org.csanchez.jenkins.plugins.kubernetes.ContainerTemplate>
-        </containers>
-        <envVars/>
-        <annotations/>
-        <imagePullSecrets/>
-      </org.csanchez.jenkins.plugins.kubernetes.PodTemplate>
 # Setup Demo
 - apiVersion: batch/v1
   kind: Job
@@ -280,19 +85,15 @@ objects:
           - /bin/bash
           - -x
           - -c
-          - |           
-            # adjust jenkins 
-            oc set resources dc/jenkins --limits=cpu=2,memory=2Gi --requests=cpu=100m,memory=512Mi 
-            oc label dc jenkins app=jenkins --overwrite 
+          - |
 
             # setup dev env
-            oc import-image wildfly --from=openshift/wildfly-120-centos7 --confirm -n ${DEV_PROJECT} 
-            
+            oc import-image wildfly --from=openshift/wildfly-120-centos7 --confirm -n ${DEV_PROJECT}
+
             if [ "${ENABLE_QUAY}" == "true" ] ; then
               # cicd
               oc create secret generic quay-cicd-secret --from-literal="username=${QUAY_USERNAME}" --from-literal="password=${QUAY_PASSWORD}" -n ${CICD_NAMESPACE}
-              oc label secret quay-cicd-secret credential.sync.jenkins.openshift.io=true -n ${CICD_NAMESPACE}
-              
+
               # dev
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${DEV_PROJECT}
               oc new-build --name=tasks --image-stream=wildfly:latest --binary=true --push-secret=quay-cicd-secret --to-docker --to='quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:latest' -n ${DEV_PROJECT}
@@ -301,7 +102,7 @@ objects:
               oc patch dc tasks -p '{"spec": {"template": {"spec": {"containers": [{"name": "tasks", "imagePullPolicy": "Always"}]}}}}' -n ${DEV_PROJECT}
               oc delete is tasks -n ${DEV_PROJECT}
               oc secrets link default quay-cicd-secret --for=pull -n ${DEV_PROJECT}
-              
+
               # stage
               oc create secret docker-registry quay-cicd-secret --docker-server=quay.io --docker-username="${QUAY_USERNAME}" --docker-password="${QUAY_PASSWORD}" --docker-email=cicd@redhat.com -n ${STAGE_PROJECT}
               oc new-app --name=tasks --docker-image=quay.io/${QUAY_USERNAME}/${QUAY_REPOSITORY}:stage --allow-missing-images -n ${STAGE_PROJECT}
@@ -314,12 +115,12 @@ objects:
               oc new-build --name=tasks --image-stream=wildfly:latest --binary=true -n ${DEV_PROJECT}
               oc new-app tasks:latest --allow-missing-images -n ${DEV_PROJECT}
               oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:latest --manual -n ${DEV_PROJECT}
-              
+
               # stage
               oc new-app tasks:stage --allow-missing-images -n ${STAGE_PROJECT}
               oc set triggers dc -l app=tasks --containers=tasks --from-image=tasks:stage --manual -n ${STAGE_PROJECT}
             fi
-            
+
             # dev project
             oc expose dc/tasks --port=8080 -n ${DEV_PROJECT}
             oc expose svc/tasks -n ${DEV_PROJECT}
@@ -335,8 +136,7 @@ objects:
             oc rollout cancel dc/tasks -n ${DEV_PROJECT}
 
             # deploy gogs
-            HOSTNAME=$(oc get route jenkins -o template --template='{{.spec.host}}' | sed "s/jenkins-${CICD_NAMESPACE}.//g")
-            GOGS_HOSTNAME="gogs-$CICD_NAMESPACE.$HOSTNAME"
+            GOGS_HOSTNAME="gogs-$CICD_NAMESPACE.${WILDCARD}"
 
             if [ "${EPHEMERAL}" == "true" ] ; then
               oc new-app -f https://raw.githubusercontent.com/OpenShiftDemos/gogs-openshift-docker/master/openshift/gogs-template.yaml \
@@ -349,7 +149,7 @@ objects:
                   --param=HOSTNAME=$GOGS_HOSTNAME \
                   --param=SKIP_TLS_VERIFY=true
             fi
-            
+
             sleep 5
 
             if [ "${EPHEMERAL}" == "true" ] ; then
@@ -388,14 +188,14 @@ objects:
             GOGS_PWD=gogs
 
             oc rollout status dc gogs
-
+            sleep 150
             _RETURN=$(curl -o /tmp/curl.log -sL --post302 -w "%{http_code}" http://$GOGS_SVC:3000/user/sign_up \
               --form user_name=$GOGS_USER \
               --form password=$GOGS_PWD \
               --form retype=$GOGS_PWD \
               --form email=admin@gogs.com)
 
-            sleep 5
+            sleep 120
 
             if [ $_RETURN != "200" ] && [ $_RETURN != "302" ] ; then
               echo "ERROR: Failed to create Gogs admin"
@@ -403,7 +203,7 @@ objects:
               exit 255
             fi
 
-            sleep 10
+            sleep 20
 
             cat <<EOF > /tmp/data.json
             {
