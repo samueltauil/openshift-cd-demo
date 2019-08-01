@@ -4,7 +4,7 @@ metadata:
   name: deploy-pipeline
 spec:
   resources:
-  - name: tasks-git
+  - name: source
     type: git
   - name: tasks-image
     type: image
@@ -18,10 +18,10 @@ spec:
     resources:
       inputs:
       - name: source
-        resource: tasks-git
+        resource: source
       outputs:
       - name: source
-        resource: tasks-git
+        resource: source
   - name: test-app
     taskRef:
       name: mvn-test
@@ -30,7 +30,7 @@ spec:
     resources:
       inputs:
       - name: source
-        resource: tasks-git
+        resource: source
   - name: analyse-code
     taskRef:
       name: mvn-code-analysis
@@ -39,7 +39,7 @@ spec:
     resources:
       inputs:
       - name: source
-        resource: tasks-git
+        resource: source
         from: [build-app]
   - name: archive-app
     taskRef:
@@ -49,7 +49,7 @@ spec:
     resources:
       inputs:
       - name: source
-        resource: tasks-git
+        resource: source
   - name: build-image
     taskRef:
       name: buildah
@@ -63,7 +63,7 @@ spec:
     resources:
       inputs:
       - name: source
-        resource: tasks-git
+        resource: source
         from: [build-app]
       outputs:
       - name: tasks-image

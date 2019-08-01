@@ -5,7 +5,7 @@ metadata:
 spec:
   inputs:
     resources:
-    - name: tasks-git
+    - name: source
       targetPath: /
       type: git
   steps:
