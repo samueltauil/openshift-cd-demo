@@ -17,40 +17,35 @@ spec:
       name: mvn-build-skip-tests
     resources:
       inputs:
-      - name: source
-        resource: tasks-git
-      outputs:
-      - name: source
+      - name: tasks-git
         resource: tasks-git
   - name: test-app
     taskRef:
       name: mvn-test
+    runAfter:
+      - build-app
     resources:
       inputs:
-      - name: source
-        resource: tasks-git
-      outputs:
-      - name: source
+      - name: tasks-git
         resource: tasks-git
   - name: analyse-code
     taskRef:
       name: mvn-code-analysis
     runAfter:
-      - mvn-test
+      - test-app
     resources:
       inputs:
-      - name: source
+      - name: tasks-git
         resource: tasks-git
         from: [build-app]
   - name: archive-app
     taskRef:
       name: mvn-archive
+    runAfter:
+      - analyse-code
     resources:
       inputs:
-      - name: source
-        resource: tasks-git
-      outputs:
-      - name: source
+      - name: tasks-git
         resource: tasks-git
   - name: build-image
     taskRef:
@@ -64,11 +59,11 @@ spec:
       value: "false"
     resources:
       inputs:
-      - name: source
+      - name: tasks-git
         resource: tasks-git
         from: [build-app]
       outputs:
-      - name: image
+      - name: tasks-image
         resource: tasks-image
   - name: deploy
     taskRef:

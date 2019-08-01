@@ -9,9 +9,9 @@ spec:
   trigger:
     type: manual
   resources:
-  - name: app-git
+  - name: tasks-git
     resourceRef:
       name: tasks-git
-  - name: app-image
+  - name: tasks-image
     resourceRef:
       name: tasks-image
