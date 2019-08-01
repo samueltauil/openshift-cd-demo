@@ -19,6 +19,9 @@ spec:
       inputs:
       - name: tasks-git
         resource: tasks-git
+      outputs:
+      - name: tasks-git
+        resource: tasks-git
   - name: test-app
     taskRef:
       name: mvn-test
