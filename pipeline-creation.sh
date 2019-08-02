@@ -15,4 +15,3 @@ oc create -f task-mvn-codeanalysis.yaml
 oc create -f task-mvn-install-skiptest.yaml
 oc create -f task-mvn-test.yaml
 oc create -f pipeline-deploy.yaml
-#oc create -f pipeline-deploy-run.yaml
