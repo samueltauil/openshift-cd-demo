@@ -8,11 +8,17 @@ spec:
     - name: source
       targetPath: /
       type: git
+  outputs:
+    resources:
+    - name: source
+      type: git
   steps:
   - name: build-install
     image: maven:3.6.0-jdk-8-slim
     command:
     - /usr/bin/mvn
     args:
-    - |
-      -s configuration/cicd-settings-nexus3.xml install -DskipTests=true
+      - -s
+      - configuration/cicd-settings-nexus3.xml
+      - install
+      - -DskipTests=true"

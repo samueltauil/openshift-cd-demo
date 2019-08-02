@@ -14,5 +14,6 @@ spec:
     command:
     - /usr/bin/mvn
     args:
-    - |
-      -s configuration/cicd-settings-nexus3.xml test
+    - -s
+    - configuration/cicd-settings-nexus3.xml
+    - test

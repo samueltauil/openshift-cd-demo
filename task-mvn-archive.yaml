@@ -14,5 +14,9 @@ spec:
     command:
     - /usr/bin/mvn
     args:
-    - |
-      -s configuration/cicd-settings-nexus3.xml deploy -DskipTests=true -P nexus3
+    - -s
+    - configuration/cicd-settings-nexus3.xml
+    - deploy
+    - -DskipTests=true
+    - -P
+    - nexus3

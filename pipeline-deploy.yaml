@@ -6,7 +6,7 @@ spec:
   resources:
   - name: source
     type: git
-  - name: tasks-image
+  - name: image
     type: image
   params:
   - name: APP_NAME
@@ -66,8 +66,8 @@ spec:
         resource: source
         from: [build-app]
       outputs:
-      - name: tasks-image
-        resource: tasks-image
+      - name: image
+        resource: image
   - name: deploy
     taskRef:
       name: openshift-client

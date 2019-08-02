@@ -14,5 +14,8 @@ spec:
     command:
     - /usr/bin/mvn
     args:
-    - |
-      -s configuration/cicd-settings-nexus3.xml sonar:sonar -Dsonar.host.url=http://sonarqube:9000 -DskipTests=true
+    - -s
+    - configuration/cicd-settings-nexus3.xml
+    - sonar:sonar
+    - -Dsonar.host.url=http://sonarqube:9000
+    - -DskipTests=true
